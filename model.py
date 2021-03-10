@@ -1,6 +1,9 @@
 import numpy as np
 
 class RidgeRegression(object):
+    '''
+    This class compute the ridge regression as we reported in the Statistical Methods for Machine Learning course (9 - linear.pdf)
+    '''
     def __init__(self, alfa=0.1):
         self.alfa = alfa
 
@@ -12,7 +15,6 @@ class RidgeRegression(object):
         C = np.dot(X_T, X) + self.alfa*id
         C = np.linalg.inv(C)
         self.w = np.linalg.multi_dot([C, X_T, y])
-        return self
 
     def predict(self, X):
         return np.dot(X, self.w)

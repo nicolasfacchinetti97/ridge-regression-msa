@@ -27,3 +27,4 @@ cal-housing.csv
 .vscode/
 .ipynb_checkpoints/
 __pycache__/
+*.pkl

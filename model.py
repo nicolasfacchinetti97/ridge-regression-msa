@@ -18,3 +18,6 @@ class RidgeRegression(object):
 
     def predict(self, X):
         return np.dot(X, self.w)
+
+    def get_weight(self):
+        return self.w

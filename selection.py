@@ -36,14 +36,6 @@ class KFoldCV():
             train_test.append([train, test])
         return train_test
 
-    def compute_error(self, true_val, predict_val, loss_func):
-        '''
-        Compute the classification error according to a specific loss function
-        '''
-        experiments = list(zip(true_val, predict_val))                          # buid a list of tuples composed by true and predicted element
-        err_list = [loss_func(row[0], row[1]) for row in experiments]           # calculate the loss for each experiment according to a specific function
-        return self.k/self.n * sum(err_list)                                    # compute the scaled errors
-        
     def get_train_test_splitted_data(self, train, test, column):
         '''
         Extract and split the data from a pandas dataframes to further evaluation
@@ -54,6 +46,15 @@ class KFoldCV():
         y_test = test[column]
         return x_train, y_train, x_test, y_test
 
+    def compute_error(self, true_val, predict_val, loss_func):
+        '''
+        Compute the classification error according to a specific loss function
+        '''
+        experiments = list(zip(true_val, predict_val))                          # buid a list of tuples composed by true and predicted element
+        err_list = [loss_func(row[0], row[1]) for row in experiments]           # calculate the loss for each experiment according to a specific function
+        l = len(err_list)
+        return 1/l * sum(err_list)                                             # compute the scaled errors 
+
     def fit_and_evaluate(self, model, x_train, y_train, x_test, y_test, loss_function):
         '''
         Get a model, the train + test data and a loss function and fit the model according the data passed and the evaluate it
@@ -62,12 +63,19 @@ class KFoldCV():
         y_predicted = model.predict(x_test)                                     # get prediction on test set
         scaled_error = self.compute_error(y_test, y_predicted, loss_function)   # compute the loss according the loss function
     
+        r2 = r2_score(y_test, y_predicted)
+        mae = mean_absolute_error(y_test, y_predicted)
+        mse = mean_squared_error(y_test, y_predicted)
         if self.print:
             print("Scaled error: " + str(scaled_error))
-            # print("R2: " + str(r2_score(y_test, y_predicted)))
-            # print("MAE: " + str(mean_absolute_error(y_test, y_predicted)))
-            # print("MSE: " + str(mean_squared_error(y_test, y_predicted)))
-            
+            print("R2: " + str(r2))
+            print("MAE: " + str(mae))
+            print("MSE: " + str(mse))
+        
+        results = {"error": scaled_error,
+                        "r2": r2,
+                        "mae": mae,
+                        "mse": mse}
         return scaled_error
 
     def cross_validate(self, model, X, Y, loss_func):
@@ -87,6 +95,30 @@ class KFoldCV():
             fold_error = self.fit_and_evaluate(model, x_train, y_train, x_test, y_test, loss_func)
             scaled_errors.append(fold_error)
         return 1/self.k * sum(scaled_errors)
+
+    def get_train_test_accuracy(self, model, X, Y, loss_func):
+        '''
+        Take in input a model, the data and return train + test accuracy
+        Input:
+            - a ML model
+            - X: dataset
+            - Y: name of the column
+            - loss function
+        Return:
+            - mean of the error on each fold
+        '''
+        train_errors = []
+        test_errors = []
+        for train, test in self.split(X):
+            x_train, y_train, x_test, y_test = self.get_train_test_splitted_data(train, test, Y)
+            fold_error = self.fit_and_evaluate(model, x_train, y_train, x_test, y_test, loss_func)
+            test_errors.append(fold_error)
+            train_predicted = model.predict(x_train)
+            train_error = self.compute_error(y_train, train_predicted, loss_func)
+            train_errors.append(train_error)
+        train_error = 1/self.k * sum(train_errors)
+        test_error = 1/self.k * sum(test_errors)
+        return (train_error, test_error)
 
 
 class NestedCV():

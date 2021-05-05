@@ -3,8 +3,8 @@ import numpy as np
 class PCA:
     def __init__(self, data):
         self.data = data
-        cov_mat = np.cov(data, rowvar=0)                                # get covariance matrix
-        eigen_values , eigen_vectors = np.linalg.eigh(cov_mat)          # get eigen values and eigen vectors 
+        cov_mat = np.cov(data, rowvar=False)                                # get covariance matrix
+        eigen_values , eigen_vectors = np.linalg.eig(cov_mat)          # get eigen values and eigen vectors 
         
         sorted_index = np.argsort(eigen_values)[::-1]                   # sort the index of eigenvalues in descending order
         self.eigenvalues = eigen_values[sorted_index]                  

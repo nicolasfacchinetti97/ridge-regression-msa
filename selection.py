@@ -1,9 +1,10 @@
 import pandas as pd
+import numpy as np
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
 class KFoldCV():
-    def __init__(self, n_splits, shuffle = False, print = False):
-        self.k = n_splits                               # number of splits
+    def __init__(self, n_splits, shuffle = 0, print = False):
+        self.k = n_splits                               # number of splits 
         self.shuffle = shuffle                          # shuffle or not the database
         self.n = 0                                      # number of records
         self.print = print                              # print data during computation
@@ -23,8 +24,8 @@ class KFoldCV():
         'Split the k folds in k train + test data'
         self.n = len(data)                              # number of rows
 
-        if self.shuffle:
-            data.sample(frac=1)
+        if self.shuffle > 0:
+            data = data.sample(frac=1, random_state=self.shuffle)
 
         folds = self.get_folds(data)
         train_test = []
@@ -61,8 +62,9 @@ class KFoldCV():
         '''
         model.fit(x_train, y_train)                                             # fit the model
         y_predicted = model.predict(x_test)                                     # get prediction on test set
+
         scaled_error = self.compute_error(y_test, y_predicted, loss_function)   # compute the loss according the loss function
-    
+        
         r2 = r2_score(y_test, y_predicted)
         mae = mean_absolute_error(y_test, y_predicted)
         mse = mean_squared_error(y_test, y_predicted)
@@ -71,11 +73,6 @@ class KFoldCV():
             print("R2: " + str(r2))
             print("MAE: " + str(mae))
             print("MSE: " + str(mse))
-        
-        results = {"error": scaled_error,
-                        "r2": r2,
-                        "mae": mae,
-                        "mse": mse}
         return scaled_error
 
     def cross_validate(self, model, X, Y, loss_func):
@@ -116,36 +113,66 @@ class KFoldCV():
             train_predicted = model.predict(x_train)
             train_error = self.compute_error(y_train, train_predicted, loss_func)
             train_errors.append(train_error)
-        train_error = 1/self.k * sum(train_errors)
-        test_error = 1/self.k * sum(test_errors)
-        return (train_error, test_error)
+        return (train_errors, test_errors)
 
 
 class NestedCV():
-    def __init__(self, outer, inner, shuffle = False):
+    def __init__(self, outer, inner, shuffle = 0, print=True):
         self.k_inner = inner
         self.k_outer = outer
         self.shuffle = shuffle
+        self.print = print
     
     def cross_validate(self, model, X, Y, loss_func, param_list):
-        outerKFold = KFoldCV(self.k_outer)                                          
+        outerKFold = KFoldCV(self.k_outer, self.shuffle)                                          
         innerKFold = KFoldCV(self.k_inner)
 
         outer_errors = []
         for i, (train_outer, test) in enumerate(outerKFold.split(X)):               # outer k fold cv
-            print("External fold num: " + str(i+1))
+            if self.print:
+                print("External fold num: " + str(i+1))
             errors_by_parameter = {}
             for value in param_list:                                                # CV each algorithm on the interal fold
                 m = model(value)
                 error = innerKFold.cross_validate(m, train_outer, Y, loss_func)
                 errors_by_parameter[value] = error
-                print("Testing with value {} with error : {}".format(value, error))
+                if self.print:
+                    print("Testing with value {} with error : {}".format(value, error))
 
             best_param = float(min(errors_by_parameter, key=errors_by_parameter.get))                             # get the value wich minimize the error
             x_train, y_train, x_test, y_test = outerKFold.get_train_test_splitted_data(train_outer, test, Y)
             best_model_on_fold = model(best_param)
             fold_error = outerKFold.fit_and_evaluate(best_model_on_fold, x_train, y_train, x_test, y_test, loss_func)
             outer_errors.append(fold_error)
-            print("The best parameter on interal folds is {}, with error on external fold: {}\n".format(best_param, fold_error))
+            if self.print:
+                print("The best parameter on interal folds is {}, with error on external fold: {}\n".format(best_param, fold_error))
         return 1/self.k_outer * sum(outer_errors)
+
+    def get_inner_outer_estimates(self, model, X, Y, loss_func, param_list):
+        outerKFold = KFoldCV(self.k_outer, self.shuffle)                                          
+        innerKFold = KFoldCV(self.k_inner)
+
+        alfas = []
+        inner_errors = []
+        outer_errors = []
+
+        for i, (train_outer, test) in enumerate(outerKFold.split(X)):               # outer k fold cv
+            
+            errors_by_parameter = {}
+            for value in param_list:                                                # CV each algorithm on the interal fold
+                m = model(value)
+                error = innerKFold.cross_validate(m, train_outer, Y, loss_func)
+                errors_by_parameter[value] = error
+                
+            best_param = float(min(errors_by_parameter, key=errors_by_parameter.get))   # get the value wich minimize the error
+            inner_error = errors_by_parameter[best_param]                               # get error on internal fold respect to best alfa
+
+            best_model_on_fold = model(best_param)
+            x_train, y_train, x_test, y_test = outerKFold.get_train_test_splitted_data(train_outer, test, Y)           
+            fold_error = outerKFold.fit_and_evaluate(best_model_on_fold, x_train, y_train, x_test, y_test, loss_func)
+            
+            alfas.append(best_param)
+            inner_errors.append(inner_error)
+            outer_errors.append(fold_error)
+        return alfas, inner_errors, outer_errors
 

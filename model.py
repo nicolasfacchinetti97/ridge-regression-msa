@@ -1,6 +1,7 @@
 import numpy as np
+from sklearn.base import BaseEstimator
 
-class RidgeRegression(object):
+class RidgeRegression(BaseEstimator):
     '''
     This class compute the ridge regression as we reported in the Statistical Methods for Machine Learning course (9 - linear.pdf)
     '''

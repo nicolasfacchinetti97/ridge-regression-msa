@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
 class KFoldCV():
     def __init__(self, n_splits, shuffle = 0, print = False):
@@ -47,14 +46,6 @@ class KFoldCV():
         y_test = test[column]
         return x_train, y_train, x_test, y_test
 
-    def compute_error(self, true_val, predict_val, loss_func):
-        '''
-        Compute the classification error according to a specific loss function
-        '''
-        experiments = list(zip(true_val, predict_val))                          # buid a list of tuples composed by true and predicted element
-        err_list = [loss_func(row[0], row[1]) for row in experiments]           # calculate the loss for each experiment according to a specific function
-        l = len(err_list)
-        return 1/l * sum(err_list)                                             # compute the scaled errors 
 
     def fit_and_evaluate(self, model, x_train, y_train, x_test, y_test, loss_function):
         '''
@@ -63,16 +54,8 @@ class KFoldCV():
         model.fit(x_train, y_train)                                             # fit the model
         y_predicted = model.predict(x_test)                                     # get prediction on test set
 
-        scaled_error = self.compute_error(y_test, y_predicted, loss_function)   # compute the loss according the loss function
+        scaled_error = loss_function(y_test, y_predicted)   # compute the loss according the loss function
         
-        r2 = r2_score(y_test, y_predicted)
-        mae = mean_absolute_error(y_test, y_predicted)
-        mse = mean_squared_error(y_test, y_predicted)
-        if self.print:
-            print("Scaled error: " + str(scaled_error))
-            print("R2: " + str(r2))
-            print("MAE: " + str(mae))
-            print("MSE: " + str(mse))
         return scaled_error
 
     def cross_validate(self, model, X, Y, loss_func):
@@ -111,9 +94,31 @@ class KFoldCV():
             fold_error = self.fit_and_evaluate(model, x_train, y_train, x_test, y_test, loss_func)
             test_errors.append(fold_error)
             train_predicted = model.predict(x_train)
-            train_error = self.compute_error(y_train, train_predicted, loss_func)
+            train_error = loss_func(y_train, train_predicted)
             train_errors.append(train_error)
         return (train_errors, test_errors)
+
+
+    def get_best_model(self, model, X, Y, loss_func):
+        '''
+        Take in input a model, the data and return train + test accuracy
+        Input:
+            - a ML model
+            - X: dataset
+            - Y: name of the column
+            - loss function
+        Return:
+            - best predictor within all obtained by the process of cross valdiation
+        '''
+        best_model = None
+        best_score = float('inf')
+        for train, test in self.split(X):
+            x_train, y_train, x_test, y_test = self.get_train_test_splitted_data(train, test, Y)
+            fold_error = self.fit_and_evaluate(model, x_train, y_train, x_test, y_test, loss_func)
+            if fold_error < best_score:
+                best_score = fold_error
+                best_model = model
+        return best_model
 
 
 class NestedCV():
